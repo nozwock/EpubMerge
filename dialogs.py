@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # vim:fileencoding=UTF-8:ts=4:sw=4:sta:et:sts=4:ai
-from __future__ import (unicode_literals, division,
-                        print_function)
+from __future__ import unicode_literals, division, print_function
 
 import logging
+
 logger = logging.getLogger(__name__)
 
-__license__   = 'GPL v3'
-__copyright__ = '2014, Jim Miller'
-__docformat__ = 'restructuredtext en'
+__license__ = "GPL v3"
+__copyright__ = "2014, Jim Miller"
+__docformat__ = "restructuredtext en"
 
 import traceback
 from functools import partial
@@ -17,10 +17,31 @@ from six import text_type as unicode
 from six.moves import range
 
 from PyQt5 import QtWidgets as QtGui
-from PyQt5.Qt import (QDialog, QTableWidget, QMessageBox, QVBoxLayout, QHBoxLayout, QGridLayout,
-                      QPushButton, QProgressDialog, QLabel, QCheckBox, QIcon, QTextCursor,
-                      QTextEdit, QLineEdit, QInputDialog, QComboBox, QClipboard,
-                      QProgressDialog, QTimer, QDialogButtonBox, QPixmap, Qt,QAbstractItemView )
+from PyQt5.Qt import (
+    QDialog,
+    QTableWidget,
+    QMessageBox,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QProgressDialog,
+    QLabel,
+    QCheckBox,
+    QIcon,
+    QTextCursor,
+    QTextEdit,
+    QLineEdit,
+    QInputDialog,
+    QComboBox,
+    QClipboard,
+    QProgressDialog,
+    QTimer,
+    QDialogButtonBox,
+    QPixmap,
+    Qt,
+    QAbstractItemView,
+)
 
 from calibre.gui2 import error_dialog, warning_dialog, question_dialog, info_dialog
 from calibre.gui2.dialogs.confirm_delete import confirm
@@ -33,46 +54,51 @@ from calibre.gui2 import dynamic
 try:
     load_translations()
 except NameError:
-    pass # load_translations() added in calibre 1.9
+    pass  # load_translations() added in calibre 1.9
 
-from calibre_plugins.epubmerge.common_utils \
-    import (ReadOnlyTableWidgetItem, SizePersistedDialog,
-            ImageTitleLayout, get_icon)
+from calibre_plugins.epubmerge.common_utils import (
+    ReadOnlyTableWidgetItem,
+    SizePersistedDialog,
+    ImageTitleLayout,
+    get_icon,
+)
 
-def LoopProgressDialog(gui,
-                       book_list,
-                       foreach_function,
-                       finish_function,
-                       init_label=_("Starting..."),
-                       win_title=_("Working"),
-                       status_prefix=_("Completed so far")):
-    ld = _LoopProgressDialog(gui,
-                             book_list,
-                             foreach_function,
-                             init_label,
-                             win_title,
-                             status_prefix)
+
+def LoopProgressDialog(
+    gui,
+    book_list,
+    foreach_function,
+    finish_function,
+    init_label=_("Starting..."),
+    win_title=_("Working"),
+    status_prefix=_("Completed so far"),
+):
+    ld = _LoopProgressDialog(
+        gui, book_list, foreach_function, init_label, win_title, status_prefix
+    )
     # Mac OS X gets upset if the finish_function is called from inside
     # the real _LoopProgressDialog class.
-    
+
     # reflect old behavior.
     if not ld.wasCanceled():
         finish_function(book_list)
-        
+
+
 class _LoopProgressDialog(QProgressDialog):
-    '''
+    """
     ProgressDialog displayed while fetching metadata for each story.
-    '''
-    def __init__(self,
-                 gui,
-                 book_list,
-                 foreach_function,
-                 init_label=_("Starting..."),
-                 win_title=_("Working"),
-                 status_prefix=_("Completed so far")):
-        QProgressDialog.__init__(self,
-                                 init_label,
-                                 _('Cancel'), 0, len(book_list), gui)
+    """
+
+    def __init__(
+        self,
+        gui,
+        book_list,
+        foreach_function,
+        init_label=_("Starting..."),
+        win_title=_("Working"),
+        status_prefix=_("Completed so far"),
+    ):
+        QProgressDialog.__init__(self, init_label, _("Cancel"), 0, len(book_list), gui)
         self.setWindowTitle(win_title)
         self.setMinimumWidth(500)
         self.book_list = book_list
@@ -86,11 +112,12 @@ class _LoopProgressDialog(QProgressDialog):
         self.exec_()
 
     def updateStatus(self):
-        self.setLabelText("%s %d of %d"%(self.status_prefix,self.i+1,len(self.book_list)))
-        self.setValue(self.i+1)
+        self.setLabelText(
+            "%s %d of %d" % (self.status_prefix, self.i + 1, len(self.book_list))
+        )
+        self.setValue(self.i + 1)
 
     def do_loop(self):
-
         if self.i == 0:
             self.setValue(0)
 
@@ -99,9 +126,9 @@ class _LoopProgressDialog(QProgressDialog):
             self.foreach_function(book)
 
         except Exception as e:
-            book['good']=False
-            book['comment']=unicode(e)
-            logger.error("Exception: %s:%s"%(book,unicode(e)),exc_info=True)
+            book["good"] = False
+            book["comment"] = unicode(e)
+            logger.error("Exception: %s:%s" % (book, unicode(e)), exc_info=True)
 
         self.updateStatus()
         self.i += 1
@@ -114,39 +141,49 @@ class _LoopProgressDialog(QProgressDialog):
     def do_when_finished(self):
         # Queues a job to process these books in the background.
         self.setLabelText(_("Starting Merge..."))
-        self.setValue(self.i+1)
+        self.setValue(self.i + 1)
 
         self.hide()
+
 
 class AuthorTableWidgetItem(ReadOnlyTableWidgetItem):
     def __init__(self, text, sort_key):
         ReadOnlyTableWidgetItem.__init__(self, text)
         self.sort_key = sort_key
 
-    #Qt uses a simple < check for sorting items, override this to use the sortKey
+    # Qt uses a simple < check for sorting items, override this to use the sortKey
     def __lt__(self, other):
         return self.sort_key < other.sort_key
+
 
 class SeriesTableWidgetItem(ReadOnlyTableWidgetItem):
     def __init__(self, series_name, series_index):
         if series_name:
-            text = '%s [%s]' % (series_name, fmt_sidx(series_index))
+            text = "%s [%s]" % (series_name, fmt_sidx(series_index))
         else:
-            text = ''
+            text = ""
         ReadOnlyTableWidgetItem.__init__(self, text)
         self.series_name = series_name
         self.series_index = series_index
 
-    #Qt uses a simple < check for sorting items, override this to use the sortKey
+    # Qt uses a simple < check for sorting items, override this to use the sortKey
     def __lt__(self, other):
         if self.series_name == other.series_name:
             return self.series_index < other.series_index
         else:
             return self.series_name < other.series_name
 
+
 class OrderEPUBsDialog(SizePersistedDialog):
-    def __init__(self, gui, header, prefs, icon, books,
-                 save_size_name='epubmerge:update list dialog'):
+    def __init__(
+        self,
+        gui,
+        header,
+        prefs,
+        icon,
+        books,
+        save_size_name="epubmerge:update list dialog",
+    ):
         SizePersistedDialog.__init__(self, gui, save_size_name)
         self.gui = gui
 
@@ -155,8 +192,7 @@ class OrderEPUBsDialog(SizePersistedDialog):
 
         layout = QVBoxLayout(self)
         self.setLayout(layout)
-        title_layout = ImageTitleLayout(self, 'images/icon.png',
-                                        header)
+        title_layout = ImageTitleLayout(self, "images/icon.png", header)
         layout.addLayout(title_layout)
         books_layout = QHBoxLayout()
         layout.addLayout(books_layout)
@@ -166,24 +202,28 @@ class OrderEPUBsDialog(SizePersistedDialog):
 
         button_layout = QVBoxLayout()
         books_layout.addLayout(button_layout)
-        spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        spacerItem = QtGui.QSpacerItem(
+            20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding
+        )
         button_layout.addItem(spacerItem)
         self.move_up_button = QtGui.QToolButton(self)
-        self.move_up_button.setToolTip(_('Move selected books up the list'))
-        self.move_up_button.setIcon(QIcon(I('arrow-up.png')))
+        self.move_up_button.setToolTip(_("Move selected books up the list"))
+        self.move_up_button.setIcon(QIcon(I("arrow-up.png")))
         self.move_up_button.clicked.connect(self.books_table.move_rows_up)
         button_layout.addWidget(self.move_up_button)
         self.remove_button = QtGui.QToolButton(self)
-        self.remove_button.setToolTip(_('Remove selected books from the list'))
-        self.remove_button.setIcon(get_icon('list_remove.png'))
+        self.remove_button.setToolTip(_("Remove selected books from the list"))
+        self.remove_button.setIcon(get_icon("list_remove.png"))
         self.remove_button.clicked.connect(self.remove_from_list)
         button_layout.addWidget(self.remove_button)
         self.move_down_button = QtGui.QToolButton(self)
-        self.move_down_button.setToolTip(_('Move selected books down the list'))
-        self.move_down_button.setIcon(QIcon(I('arrow-down.png')))
+        self.move_down_button.setToolTip(_("Move selected books down the list"))
+        self.move_down_button.setIcon(QIcon(I("arrow-down.png")))
         self.move_down_button.clicked.connect(self.books_table.move_rows_down)
         button_layout.addWidget(self.move_down_button)
-        spacerItem1 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        spacerItem1 = QtGui.QSpacerItem(
+            20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding
+        )
         button_layout.addItem(spacerItem1)
 
         options_layout = QHBoxLayout()
@@ -205,8 +245,8 @@ class OrderEPUBsDialog(SizePersistedDialog):
     def get_books(self):
         return self.books_table.get_books()
 
-class StoryListTableWidget(QTableWidget):
 
+class StoryListTableWidget(QTableWidget):
     def __init__(self, parent):
         QTableWidget.__init__(self, parent)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -218,16 +258,16 @@ class StoryListTableWidget(QTableWidget):
         self.clear()
         self.setAlternatingRowColors(True)
         self.setRowCount(len(books))
-        header_labels = [_('Title'), _('Author(s)'), _('Series')]
+        header_labels = [_("Title"), _("Author(s)"), _("Series")]
         self.setColumnCount(len(header_labels))
         self.setHorizontalHeaderLabels(header_labels)
         self.horizontalHeader().setStretchLastSection(True)
-        #self.verticalHeader().setDefaultSectionSize(24)
+        # self.verticalHeader().setDefaultSectionSize(24)
         self.verticalHeader().hide()
 
         self.horizontalHeader().sectionClicked.connect(self.on_headersection_clicked)
 
-        self.books={}
+        self.books = {}
         for row, book in enumerate(books):
             self.populate_table_row(row, book)
             self.books[row] = book
@@ -243,15 +283,17 @@ class StoryListTableWidget(QTableWidget):
             self.setColumnWidth(col, minimum)
 
     def populate_table_row(self, row, book):
-
-        title_cell = ReadOnlyTableWidgetItem(book['title'])
+        title_cell = ReadOnlyTableWidgetItem(book["title"])
         title_cell.setData(Qt.UserRole, row)
         self.setItem(row, 0, title_cell)
 
-        self.setItem(row, 1, AuthorTableWidgetItem(' & '.join(book['authors']),
-                                                   book['author_sort']))
+        self.setItem(
+            row,
+            1,
+            AuthorTableWidgetItem(" & ".join(book["authors"]), book["author_sort"]),
+        )
 
-        series_cell = SeriesTableWidgetItem(book['series'],book['series_index'])
+        series_cell = SeriesTableWidgetItem(book["series"], book["series_index"])
         self.setItem(row, 2, series_cell)
 
     def get_books(self):
@@ -268,10 +310,12 @@ class StoryListTableWidget(QTableWidget):
         rows = sorted(rows, key=lambda x: x.row(), reverse=True)
         if len(rows) == 0:
             return
-        message = '<p>'+_('Are you sure you want to remove this book from the list?')
+        message = "<p>" + _("Are you sure you want to remove this book from the list?")
         if len(rows) > 1:
-            message = '<p>'+_('Are you sure you want to remove the selected %d books from the list?')%len(rows)
-        if not confirm(message,'epubmerge_delete_item_again', self):
+            message = "<p>" + _(
+                "Are you sure you want to remove the selected %d books from the list?"
+            ) % len(rows)
+        if not confirm(message, "epubmerge_delete_item_again", self):
             return
         first_sel_row = self.currentRow()
         for selrow in rows:
@@ -335,23 +379,25 @@ class StoryListTableWidget(QTableWidget):
         self.removeRow(src_row)
         self.blockSignals(False)
 
-class AddOverDiscardDialog(QDialog):
 
+class AddOverDiscardDialog(QDialog):
     def __init__(self, parent, icon, text, over=True):
         QDialog.__init__(self, parent)
-        self.state=None
+        self.state = None
 
         layout = QVBoxLayout(self)
         self.setLayout(layout)
-        self.setWindowTitle(_('UnMerge Epub'))
+        self.setWindowTitle(_("UnMerge Epub"))
 
         label = QLabel(text)
         label.setOpenExternalLinks(True)
         label.setWordWrap(True)
         layout.addWidget(label)
 
-        self.applyall = QCheckBox(_('Apply to all EPUBs?'),self)
-        self.applyall.setToolTip(_('Apply the same action to the rest of the EPUBs after this.'))
+        self.applyall = QCheckBox(_("Apply to all EPUBs?"), self)
+        self.applyall.setToolTip(
+            _("Apply the same action to the rest of the EPUBs after this.")
+        )
         layout.addWidget(self.applyall)
 
         button_box = QDialogButtonBox(self)
@@ -372,11 +418,10 @@ class AddOverDiscardDialog(QDialog):
         return self.applyall.isChecked()
 
     def add(self):
-        self.state="add"
+        self.state = "add"
 
     def over(self):
-        self.state="over"
+        self.state = "over"
 
     def discard(self):
-        self.state="discard"
-
+        self.state = "discard"
